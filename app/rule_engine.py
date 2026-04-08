@@ -35,7 +35,7 @@ def score_and_rank_drivers(load: Load, drivers: List[Driver], max_distance_km: i
         history_score = (driver.completion_rate / 100.0) * WEIGHTS["history_wt"]
         
         # Total
-        total_match_score = proximity_score + rating_score + history_score
+        total_match_score = proximity_score + rating_score + history_score 
         
         # Formatting breakdown
         breakdown = ScoreBreakdown(
