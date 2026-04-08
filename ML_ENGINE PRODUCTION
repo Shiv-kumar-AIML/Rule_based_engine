@@ -1,11 +1,15 @@
+# 🚀 DRIVER MATCHING SYSTEM - FINAL ARCHITECTURE
+
+## 📌 System Overview
+
+> Real-time driver-load matching system with Rule-based (Phase 1) and ML-based (Phase 2) support.
+> Seamless switching via `ml_use: true/false` parameter.
 
 ---
-👉 “System real-time me driver matching predict karta hai (API), aur background me after one month naya data use karke model ko retrain karta hai—bina downtime ke naya model automatically use ho jata hai.”
 
----
+## 🏗️ FINAL ARCHITECTURE DIAGRAM
 
-🚀 IMPROVED ARCHITECTURE (Industry-Level)
-
+```
                                     ┌────────────────────────────────────────────────────────────┐
                                     │                    INTERNET                                │
                                     └───────────────────────────┬────────────────────────────────┘
@@ -21,622 +25,614 @@
 ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                          DOCKER NETWORK: driver_matching_network                              │
 │                                                                                                               │
-│    ┌──────────────────────────────────┐                                                                       │
-│    │         API SERVICE              │◄─────── User Request {"ml_use": true/false}                           │
-│    │      (FastAPI + Uvicorn)         │                                                                       │
-│    │         Port: 8000               │                                                                       │
-│    │                                  │                                                                       │
-│    │  Endpoints:                      │                                                                       │
-│    │  ├── POST /api/v1/dispatch       │                                                                       │
-│    │  ├── GET  /api/v1/health         │                                                                       │
-│    │  └── GET  /metrics               │                                                                       │
-│    └──────────────┬───────────────────┘                                                                       │
-│                   │                                                                                           │
-│                   │ HTTP (Internal)                                                                           │
-│                   ▼                                                                                           │
-│    ┌──────────────────────────────────┐         ┌──────────────────────────────────┐                          │
-│    │         ML SERVICE               │         │        PREDICTION ENGINE         │                          │
-│    │      (FastAPI)                   │         │                                  │                          │
-│    │         Port: 8001               │         │   ┌────────────────────────┐     │                          │
-│    │                                  │         │   │     RULE ENGINE        │     │                          │
-│    │  Endpoints:                      │────────►│   │   (ml_use: false)      │     │                          │
-│    │  ├── POST /predict               │         │   │  • Distance scoring    │     │                          │
-│    │  ├── GET  /model/info            │         │   │  • Rating scoring      │     │                          │
-│    │  └── GET  /metrics               │         │   │  • Completion scoring  │     │                          │
-│    │                                  │         │   └────────────────────────┘     │                          │
-│    │  Features:                       │         │                                  │                          │
-│    │  ├── Model hot-reload            │         │   ┌────────────────────────┐     │                          │
-│    │  ├── Fallback to rules           │         │   │      ML ENGINE         │     │                          │
-│    │  └── Model versioning            │         │   │   (ml_use: true)       │     │                          │
-│    └──────────────┬───────────────────┘         │   │  • XGBoost Ranker      │     │                          │
-│                   │                             │   │  • Batch prediction    │     │                          │
-│                   │                             │   └────────────────────────┘     │                          │
-│                   │                             └──────────────────────────────────┘                          │
-│                   │                                                                                           │
-│                   │ Volume Mount                                                                              │
-│                   ▼                                                                                           │
-│    ┌──────────────────────────────────────────────────────────────────────────────────────────────────────┐   │
-│    │                              /storage (Docker Volume - SHARED)                                        │   │
-│    │                                                                                                       │   │
-│    │    /storage/models/                          /storage/logs/                                           │   │
-│    │    ├── model_latest.pkl  ◄─── Active        ├── api_service/app.log                                   │   │
-│    │    ├── model_v1_20240408.pkl                ├── ml_service/app.log                                    │   │
-│    │    └── metadata.json                        └── training/train.log                                    │   │
-│    └──────────────────────────────────────────────────────────────────────────────────────────────────────┘   │
-│                   ▲                                                                                           │
-│                   │ File Write (Cron 2 AM)                                                                    │
-│                   │                                                                                           │
-│    ┌──────────────┴───────────────────┐         ┌──────────────────────────────────┐                          │
-│    │      TRAINING SERVICE            │         │        TRAINING PIPELINE          │                          │
-│    │      (Python + Cron)             │────────►│  1. Data Loading (DB/CSV)         │                          │
-│    │                                  │         │  2. Feature Engineering           │                          │
-│    │  Schedule: Daily 2:00 AM         │         │  3. XGBoost Ranker Training       │                          │
-│    │                                  │         │  4. Validation (accuracy check)   │                          │
-│    └──────────────┬───────────────────┘         │  5. Save Model (versioned)        │                          │
-│                   │                             └──────────────────────────────────┘                          │
-│                   │ SQL Query                                                                                 │
-│                   ▼                                                                                           │
-│    ┌──────────────────────────────────┐         ┌──────────────────────────────────┐                          │
-│    │         POSTGRESQL               │         │           REDIS (Optional)       │                          │
-│    │         Port: 5432               │         │         Port: 6379               │                          │
-│    │                                  │         │                                  │                          │
-│    │  Tables:                         │         │  Uses:                           │                          │
-│    │  ├── drivers                     │         │  ├── Response caching            │                          │
-│    │  ├── loads                       │         │  └── Rate limiting               │                          │
-│    │  └── historical_matches          │         │                                  │                          │
-│    └──────────────────────────────────┘         └──────────────────────────────────┘                          │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                                           API LAYER                                                     │  │
+│  │                                                                                                         │  │
+│  │    ┌──────────────────────────────────┐                                                                 │  │
+│  │    │         API SERVICE              │                                                                 │  │
+│  │    │      (FastAPI + Uvicorn)         │                                                                 │  │
+│  │    │         Port: 8000               │                                                                 │  │
+│  │    │                                  │                                                                 │  │
+│  │    │  Endpoints:                      │                                                                 │  │
+│  │    │  ├── POST /api/v1/dispatch       │◄─────── User Request (ml_use: true/false)                       │  │
+│  │    │  ├── GET  /api/v1/health         │                                                                 │  │
+│  │    │  └── GET  /metrics               │                                                                 │  │
+│  │    │                                  │                                                                 │  │
+│  │    │  Features:                       │                                                                 │  │
+│  │    │  ├── Request validation          │                                                                 │  │
+│  │    │  ├── Structured logging          │                                                                 │  │
+│  │    │  ├── Prometheus metrics          │                                                                 │  │
+│  │    │  └── Error handling              │                                                                 │  │
+│  │    └──────────────┬───────────────────┘                                                                 │  │
+│  │                   │                                                                                     │  │
+│  └───────────────────┼─────────────────────────────────────────────────────────────────────────────────────┘  │
+│                      │                                                                                        │
+│                      │ HTTP (Internal)                                                                        │
+│                      ▼                                                                                        │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                                           ML LAYER                                                      │  │
+│  │                                                                                                         │  │
+│  │    ┌──────────────────────────────────┐         ┌──────────────────────────────────┐                    │  │
+│  │    │         ML SERVICE               │         │        PREDICTION ENGINE         │                    │  │
+│  │    │      (FastAPI + Uvicorn)         │         │                                  │                    │  │
+│  │    │         Port: 8001               │         │   ┌────────────────────────┐     │                    │  │
+│  │    │                                  │         │   │     RULE ENGINE        │     │                    │  │
+│  │    │  Endpoints:                      │         │   │   (ml_use: false)      │     │                    │  │
+│  │    │  ├── POST /predict               │────────►│   │                        │     │                    │  │
+│  │    │  ├── GET  /health                │         │   │  • Distance scoring    │     │                    │  │
+│  │    │  ├── GET  /model/info            │         │   │  • Rating scoring      │     │                    │  │
+│  │    │  └── GET  /metrics               │         │   │  • Completion scoring  │     │                    │  │
+│  │    │                                  │         │   │  • Weighted combination│     │                    │  │
+│  │    │  Features:                       │         │   └────────────────────────┘     │                    │  │
+│  │    │  ├── Model hot-reload            │         │                                  │                    │  │
+│  │    │  ├── Fallback mechanism          │         │   ┌────────────────────────┐     │                    │  │
+│  │    │  ├── Model versioning            │         │   │      ML ENGINE         │     │                    │  │
+│  │    │  └── Prediction metrics          │         │   │   (ml_use: true)       │     │                    │  │
+│  │    └──────────────────────────────────┘         │   │                        │     │                    │  │
+│  │                   │                             │   │  • XGBoost Ranker      │     │                    │  │
+│  │                   │                             │   │  • Feature extraction  │     │                    │  │
+│  │                   │                             │   │  • Batch prediction    │     │                    │  │
+│  │                   │                             │   │  • Score normalization │     │                    │  │
+│  │                   │                             │   └────────────────────────┘     │                    │  │
+│  │                   │                             │                                  │                    │  │
+│  │                   │                             └──────────────────────────────────┘                    │  │
+│  │                   │                                                                                     │  │
+│  └───────────────────┼─────────────────────────────────────────────────────────────────────────────────────┘  │
+│                      │                                                                                        │
+│                      │ File System (Volume Mount)                                                             │
+│                      ▼                                                                                        │
+│  ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                                        STORAGE LAYER                                                   │   │
+│  │                                                                                                        │   │
+│  │    ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐│   │
+│  │    │                              /storage (Docker Volume)                                            ││   │
+│  │    │                                                                                                  ││   │
+│  │    │    /storage/models/                          /storage/logs/                                      ││   │
+│  │    │    ├── model_latest.pkl  ◄─── Active        ├── api_service/                                     ││   │
+│  │    │    ├── model_v1_20240408.pkl                │   └── app.log                                      ││   │
+│  │    │    ├── model_v2_20240508.pkl                ├── ml_service/                                      ││   │
+│  │    │    └── metadata.json     ◄─── Version Info  │   └── app.log                                      ││   │
+│  │    │                                             └── training/                                        ││   │
+│  │    │                                                 └── train.log                                    ││   │
+│  │    └──────────────────────────────────────────────────────────────────────────────────────────────────┘│   │
+│  │                      ▲                                                                                 │   │
+│  └──────────────────────┼─────────────────────────────────────────────────────────────────────────────────┘   │
+│                         │                                                                                     │
+│                         │ File Write (Cron Job)                                                               │
+│                         │                                                                                     │
+│  ┌──────────────────────┴───────────────────────────────────────────────────────────────────────────────────┐ │
+│  │                                        TRAINING LAYER                                                    │ │
+│  │                                                                                                          │ │
+│  │    ┌──────────────────────────────────┐         ┌──────────────────────────────────┐                     │ │
+│  │    │      TRAINING SERVICE            │         │        TRAINING PIPELINE         │                     │ │
+│  │    │      (Python + Cron)             │         │                                  │                     │ │
+│  │    │                                  │         │   1. Data Loading                │                     │ │
+│  │    │  Schedule:                       │         │      └── PostgreSQL / CSV        │                     │ │
+│  │    │  └── Daily 2:00 AM               │────────►│                                  │                     │ │
+│  │    │                                  │         │   2. Feature Engineering         │                     │ │
+│  │    │  Features:                       │         │      └── Distance, Rating, etc.  │                     │ │
+│  │    │  ├── Automated training          │         │                                  │                     │ │
+│  │    │  ├── Model validation            │         │   3. Model Training              │                     │ │
+│  │    │  ├── Version management          │         │      └── XGBoost Ranker          │                     │ │
+│  │    │  └── Rollback support            │         │                                  │                     │ │
+│  │    └──────────────────────────────────┘         │   4. Validation                  │                     │ │
+│  │                   │                             │      └── Accuracy threshold      │                     │ │
+│  │                   │                             │                                  │                     │ │
+│  │                   │                             │   5. Save Model                  │                     │ │
+│  │                   │                             │      └── /storage/models/        │                     │ │
+│  │                   │                             └──────────────────────────────────┘                     │ │
+│  │                   │                                                                                      │ │
+│  └───────────────────┼──────────────────────────────────────────────────────────────────────────────────────┘ │
+│                      │                                                                                        │
+│                      │ SQL Query                                                                              │
+│                      ▼                                                                                        │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                                        DATA LAYER                                                       │  │
+│  │                                                                                                         │  │
+│  │    ┌──────────────────────────────────┐         ┌──────────────────────────────────┐                    │  │
+│  │    │         POSTGRESQL               │         │           REDIS                  │                    │  │
+│  │    │         Port: 5432               │         │         Port: 6379               │                    │  │
+│  │    │                                  │         │         (Optional)               │                    │  │
+│  │    │  Tables:                         │         │                                  │                    │  │
+│  │    │  ├── drivers                     │         │  Uses:                           │                    │  │
+│  │    │  ├── loads                       │         │  ├── API response caching        │                    │  │
+│  │    │  ├── matches                     │         │  ├── Rate limiting               │                    │  │
+│  │    │  └── historical_matches          │         │  └── Session management          │                    │  │
+│  │    │                                  │         │                                  │                    │  │
+│  │    └──────────────────────────────────┘         └──────────────────────────────────┘                    │  │
+│  │                                                                                                         │  │
+│  └─────────────────────────────────────────────────────────────────────────────────────────────────────────┘  │
 │                                                                                                               │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
+                                                     │
                                                      │ Metrics Scrape
                                                      ▼
 ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                          MONITORING LAYER                                                     │
 │                                                                                                               │
-│    ┌──────────────────────┐    ┌──────────────────────┐    ┌──────────────────────┐                           │
-│    │     PROMETHEUS       │    │      GRAFANA         │    │        LOKI          │                           │
-│    │     Port: 9090       │───►│     Port: 3000       │    │     Port: 3100       │                           │
-│    │  Metrics collection  │    │  Dashboards/Alerts   │    │  Log aggregation     │                           │
-│    └──────────────────────┘    └──────────────────────┘    └──────────────────────┘                           │
+│    ┌──────────────────────────────────┐    ┌──────────────────────────────────┐    ┌────────────────────────┐ │
+│    │         PROMETHEUS               │    │          GRAFANA                 │    │        LOKI            │ │
+│    │         Port: 9090               │    │         Port: 3000               │    │     Port: 3100         │ │
+│    │                                  │    │                                  │    │                        │ │
+│    │  Metrics:                        │    │  Dashboards:                     │    │  Log Aggregation:      │ │
+│    │  ├── Request latency             │───►│  ├── API Performance             │    │  ├── All services      │ │
+│    │  ├── Request count               │    │  ├── ML Model Metrics            │    │  ├── Error tracking    │ │
+│    │  ├── Error rate                  │    │  ├── Training Status             │    │  └── Search & filter   │ │
+│    │  ├── Model predictions           │    │  └── System Health               │    │                        │ │
+│    │  └── Training metrics            │    │                                  │    │                        │ │
+│    └──────────────────────────────────┘    └──────────────────────────────────┘    └────────────────────────┘ │
 │                                                                                                               │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-
-
-📁 COMPLETE PROJECT STRUCTURE
-
-driver_matching/
-│
-├── .env                                    # Secrets (NEVER commit)
-├── .env.example                            # Template (safe to commit)
-├── .gitignore                              
-├── docker-compose.yml                      # Main orchestration
-├── docker-compose.monitoring.yml           # Monitoring stack
-├── Makefile                                # Common commands
-├── README.md                               
-│
-├── api_service/
-│   ├── Dockerfile
-│   ├── .dockerignore
-│   ├── requirements.txt
-│   └── app/
-│       ├── __init__.py
-│       ├── main.py                         # FastAPI entry
-│       ├── config.py                       # Load .env
-│       ├── routes/
-│       │   ├── __init__.py
-│       │   ├── dispatch.py                 # POST /api/v1/dispatch
-│       │   └── health.py                   # GET /health
-│       ├── schemas/
-│       │   ├── __init__.py
-│       │   ├── driver.py                   # Driver model
-│       │   ├── load.py                     # Load model
-│       │   ├── request.py                  # DispatchRequest
-│       │   └── response.py                 # DispatchResponse
-│       ├── services/
-│       │   ├── __init__.py
-│       │   └── ml_client.py                # HTTP client for ML service
-│       ├── middleware/
-│       │   ├── __init__.py
-│       │   ├── logging.py                  # Request logging
-│       │   └── error_handler.py            # Global error handler
-│       └── utils/
-│           ├── __init__.py
-│           ├── logger.py                   # Structured JSON logging
-│           └── metrics.py                  # Prometheus metrics
-│
-├── ml_service/
-│   ├── Dockerfile
-│   ├── .dockerignore
-│   ├── requirements.txt
-│   └── app/
-│       ├── __init__.py
-│       ├── main.py                         # FastAPI entry
-│       ├── config.py                       
-│       ├── routes/
-│       │   ├── __init__.py
-│       │   ├── predict.py                  # POST /predict
-│       │   ├── health.py                   
-│       │   └── model_info.py               # GET /model/info
-│       ├── schemas/
-│       │   ├── __init__.py
-│       │   ├── prediction_request.py       
-│       │   └── prediction_response.py      
-│       ├── services/
-│       │   ├── __init__.py
-│       │   ├── predictor.py                # Main logic (routes to rule/ml)
-│       │   ├── rule_engine.py              # Rule-based scoring (Phase 1)
-│       │   └── ml_engine.py                # ML-based scoring (Phase 2)
-│       ├── models/
-│       │   ├── __init__.py
-│       │   └── model_manager.py            # Model loading + hot-reload
-│       └── utils/
-│           ├── __init__.py
-│           ├── logger.py                   
-│           ├── metrics.py                  
-│           └── distance.py                 # Haversine calculation
-│
-├── training/
-│   ├── Dockerfile
-│   ├── .dockerignore
-│   ├── requirements.txt
-│   └── app/
-│       ├── __init__.py
-│       ├── pipeline.py                     # Main entry (cron calls this)
-│       ├── config.py                       
-│       ├── stages/
-│       │   ├── __init__.py
-│       │   ├── data_loader.py              # Load from DB/CSV
-│       │   ├── feature_engineering.py      
-│       │   ├── trainer.py                  # XGBoost training
-│       │   └── validator.py                # Accuracy check
-│       └── utils/
-│           ├── __init__.py
-│           ├── logger.py                   
-│           ├── db.py                       # Database connection
-│           └── model_saver.py              # Save with versioning
-│
-├── storage/
-│   ├── models/
-│   │   ├── .gitkeep
-│   │   ├── model_latest.pkl                # Active model (symlink)
-│   │   └── metadata.json                   # Version info
-│   └── logs/
-│       ├── api_service/
-│       ├── ml_service/
-│       └── training/
-│
-├── monitoring/
-│   ├── prometheus/
-│   │   ├── prometheus.yml
-│   │   └── rules/alerts.yml
-│   ├── grafana/
-│   │   ├── provisioning/
-│   │   │   ├── dashboards/dashboards.yml
-│   │   │   └── datasources/datasources.yml
-│   │   └── dashboards/
-│   │       ├── api_performance.json
-│   │       ├── ml_metrics.json
-│   │       └── system_health.json
-│   └── loki/
-│       └── loki-config.yml
-│
-├── database/
-│   ├── migrations/
-│   │   └── 001_initial_schema.sql
-│   └── seeds/
-│       └── sample_data.sql
-│
-├── scripts/
-│   ├── setup.sh                            # Initial setup
-│   ├── deploy.sh                           # Deployment
-│   ├── train_manual.sh                     # Manual training trigger
-│   └── health_check.sh                     
-│
-├── tests/
-│   ├── api_service/
-│   │   ├── test_dispatch.py
-│   │   └── test_health.py
-│   ├── ml_service/
-│   │   ├── test_rule_engine.py
-│   │   ├── test_ml_engine.py
-│   │   └── test_predictor.py
-│   └── integration/
-│       └── test_full_flow.py
-│
-└── data/
-    ├── sample_drivers.csv
-    ├── sample_loads.csv
-    └── sample_historical_matches.csv
----
-
-# 🔌 3) DATA FLOW (KAHAN SE DATA AAYEGA)
-
-┌─────────┐         ┌─────────────┐         ┌─────────────────┐         ┌─────────────────────────────┐
-│  User   │────────►│ API Service │────────►│   ML Service    │────────►│     PREDICTION ENGINE       │
-│ Request │         │  /dispatch  │         │    /predict     │         │                             │
-│         │         │             │         │                 │         │  ml_use: false              │
-│ {       │         │             │         │                 │         │    └─► Rule Engine          │
-│  load,  │         │             │         │                 │         │        (weighted scoring)   │
-│  drivers│         │             │         │                 │         │                             │
-│  ml_use │         │             │         │                 │         │  ml_use: true               │
-│ }       │         │             │         │                 │         │    └─► ML Engine            │
-└─────────┘         └─────────────┘         └─────────────────┘         │        (XGBoost Ranker)     │
-                                                                        │                             │
-     ◄──────────────────────────────────────────────────────────────────┤  Output: Ranked Drivers     │
-     Response: {"ranked_drivers": [...], "engine_used": "rule/ml"}      └─────────────────────────────┘
----
-
-# 🚀 4) TRAINING SERVICE (AUTO-TRAIN)
-
-## 📌 `training/train.py`
-
-```python
-import pandas as pd
-import lightgbm as lgb
-import pickle
-
-def train():
-    df = pd.read_csv("data.csv")   # ya DB se load
-
-    X = df[["distance","rating","completion"]]
-    y = df["accepted"]
-
-    model = lgb.LGBMClassifier()
-    model.fit(X, y)
-
-    with open("/storage/model.pkl","wb") as f:
-        pickle.dump(model, f)
-
-    print("✅ Model Updated")
 ```
 
 ---
 
-## 📌 `training/pipeline.py`
+## 🔄 REQUEST FLOW DIAGRAM
 
-```python
-from train import train
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    REQUEST FLOW                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
 
-if __name__ == "__main__":
-    train()
+                                                             
+┌─────────┐    ┌─────────────┐    ┌─────────────────┐    ┌────────────────────────────────────┐
+│  User   │───►│ API Service │───►│   ML Service    │───►│         PREDICTION ENGINE          │
+│ Request │    │  /dispatch  │    │    /predict     │    │                                    │
+└─────────┘    └─────────────┘    └─────────────────┘    │  ┌─────────────┐  ┌─────────────┐  │
+                                                         │  │ Rule Engine │  │  ML Engine  │  │
+     │              │                    │               │  │ml_use: false│  │ml_use: true │  │
+     │              │                    │               │  │  Weighted   │  │  XGBoost    │  │
+     │              │                    │               │  │  Scoring    │  │  Ranker     │  │
+     │              │                    │               │  │             │  │             │  │
+     │              │                    │               │  └──────┬──────┘  └──────┬──────┘  │
+     │              │                    │               │         │                │         │
+     │              │                    │               │         └────────┬───────┘         │
+     │              │                    │               │                  │                 │
+     │              │                    │               └──────────────────┼─────────────────┘
+     │              │                    │                                  │
+     │              │                    │                                  ▼
+     │              │                    │                    ┌─────────────────────────┐
+     │              │                    │                    │    Ranked Drivers       │
+     │              │                    │                    │    [driver_1, driver_2] │
+     │              │                    │                    │    with scores          │
+     │              │                    │◄───────────────────│                         │
+     │              │◄───────────────────│                    └─────────────────────────┘
+     │◄─────────────│
+     │
+     ▼
+┌─────────┐
+│Response │
+│  JSON   │
+└─────────┘
 ```
 
 ---
 
-# TRAINING FLOW (Background - Cron 2 AM)
+## 🔄 TRAINING FLOW DIAGRAM
 
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    TRAINING FLOW (CRON - 2:00 AM Daily)                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
 
 ┌────────────┐     ┌────────────────┐     ┌────────────────┐     ┌────────────────┐
 │ PostgreSQL │────►│  Data Loader   │────►│   Feature      │────►│   Trainer      │
-│ (history)  │     │                │     │   Engineering  │     │   (XGBoost)    │
+│            │     │                │     │   Engineering  │     │   (XGBoost)    │
 └────────────┘     └────────────────┘     └────────────────┘     └───────┬────────┘
                                                                          │
      ┌───────────────────────────────────────────────────────────────────┘
      │
      ▼
 ┌────────────────┐     ┌────────────────┐     ┌────────────────┐
-│   Validator    │     │  Save Model    │     │ Update         │
-│   Accuracy>70% │────►│  model_v2.pkl  │────►│ metadata.json  │
-│   ?            │     │  + symlink     │     │                │
+│   Validator    │────►│  Save Model    │────►│ Update         │
+│   (Accuracy    │     │  (Versioned)   │     │ metadata.json  │
+│   Threshold)   │     │                │     │                │
 └───────┬────────┘     └────────────────┘     └────────────────┘
         │
-        │ FAIL
+        │  If validation fails
         ▼
 ┌────────────────┐
-│  Keep Old      │     ◄─── System Safe (old model stays)
+│  Keep Old      │
 │  Model         │
+│  (Rollback)    │
 └────────────────┘
 
-Server pe:
+
+NEXT API REQUEST:
+┌────────────────┐     ┌────────────────┐     ┌────────────────┐
+│  Check Model   │────►│  Timestamp     │────►│  Hot Reload    │
+│  File          │     │  Changed?      │     │  New Model     │
+└────────────────┘     └────────────────┘     └────────────────┘
+                              │
+                              │ No change
+                              ▼
+                       ┌────────────────┐
+                       │  Use Cached    │
+                       │  Model         │
+                       └────────────────┘
+```
+
+---
+
+## 📁 FINAL PROJECT STRUCTURE
+
+```
+driver_matching/
+│
+├── 📄 .env                                    # Environment variables (NEVER commit!)
+├── 📄 .env.example                            # Template for .env (safe to commit)
+├── 📄 .gitignore                              # Git ignore rules
+├── 📄 docker-compose.yml                      # Main orchestration
+├── 📄 docker-compose.monitoring.yml           # Monitoring stack (optional)
+├── 📄 docker-compose.override.yml             # Local development overrides
+├── 📄 Makefile                                # Common commands
+├── 📄 README.md                               # Project documentation
+├── 📄 ARCHITECTURE.md                         # This file
+│
+├── 📁 api_service/                            # API SERVICE (Entry Point)
+│   ├── 📄 Dockerfile                          # Container build instructions
+│   ├── 📄 .dockerignore                       # Docker ignore rules
+│   ├── 📄 requirements.txt                    # Python dependencies
+│   │
+│   └── 📁 app/
+│       ├── 📄 __init__.py                     # Package marker
+│       ├── 📄 main.py                         # FastAPI application entry
+│       ├── 📄 config.py                       # Configuration from .env
+│       │
+│       ├── 📁 routes/                         # API Endpoints
+│       │   ├── 📄 __init__.py
+│       │   ├── 📄 dispatch.py                 # POST /api/v1/dispatch
+│       │   └── 📄 health.py                   # GET /api/v1/health
+│       │
+│       ├── 📁 schemas/                        # Pydantic Models (Request/Response)
+│       │   ├── 📄 __init__.py
+│       │   ├── 📄 driver.py                   # Driver schema
+│       │   ├── 📄 load.py                     # Load schema
+│       │   ├── 📄 request.py                  # Dispatch request schema
+│       │   └── 📄 response.py                 # Dispatch response schema
+│       │
+│       ├── 📁 services/                       # Business Logic
+│       │   ├── 📄 __init__.py
+│       │   └── 📄 ml_client.py                # HTTP client for ML service
+│       │
+│       ├── 📁 middleware/                     # Request Processing
+│       │   ├── 📄 __init__.py
+│       │   ├── 📄 logging.py                  # Request logging middleware
+│       │   ├── 📄 error_handler.py            # Global error handler
+│       │   └── 📄 cors.py                     # CORS configuration
+│       │
+│       └── 📁 utils/                          # Utility Functions
+│           ├── 📄 __init__.py
+│           ├── 📄 logger.py                   # Structured JSON logging
+│           └── 📄 metrics.py                  # Prometheus metrics
+│
+├── 📁 ml_service/                             # ML SERVICE (Prediction Engine)
+│   ├── 📄 Dockerfile
+│   ├── 📄 .dockerignore
+│   ├── 📄 requirements.txt
+│   │
+│   └── 📁 app/
+│       ├── 📄 __init__.py
+│       ├── 📄 main.py                         # FastAPI application entry
+│       ├── 📄 config.py                       # Configuration
+│       │
+│       ├── 📁 routes/                         # API Endpoints
+│       │   ├── 📄 __init__.py
+│       │   ├── 📄 predict.py                  # POST /predict
+│       │   ├── 📄 health.py                   # GET /health
+│       │   └── 📄 model_info.py               # GET /model/info
+│       │
+│       ├── 📁 schemas/                        # Pydantic Models
+│       │   ├── 📄 __init__.py
+│       │   ├── 📄 prediction_request.py       # Input schema
+│       │   └── 📄 prediction_response.py      # Output schema
+│       │
+│       ├── 📁 services/                       # Core Logic
+│       │   ├── 📄 __init__.py
+│       │   ├── 📄 predictor.py                # Main predictor (routes to rule/ml)
+│       │   ├── 📄 rule_engine.py              # Rule-based scoring (Phase 1)
+│       │   └── 📄 ml_engine.py                # ML-based scoring (Phase 2)
+│       │
+│       ├── 📁 models/                         # Model Management
+│       │   ├── 📄 __init__.py
+│       │   └── 📄 model_manager.py            # Model loading + hot-reload
+│       │
+│       └── 📁 utils/                          # Utilities
+│           ├── 📄 __init__.py
+│           ├── 📄 logger.py                   # Logging
+│           ├── 📄 metrics.py                  # Prometheus metrics
+│           ├── 📄 distance.py                 # Haversine distance calculation
+│           └── 📄 validator.py                # Input validation
+│
+├── 📁 training/                               # TRAINING SERVICE
+│   ├── 📄 Dockerfile
+│   ├── 📄 .dockerignore
+│   ├── 📄 requirements.txt
+│   │
+│   └── 📁 app/
+│       ├── 📄 __init__.py
+│       ├── 📄 pipeline.py                     # Main entry point (cron calls this)
+│       ├── 📄 config.py                       # Configuration
+│       │
+│       ├── 📁 stages/                         # Pipeline Stages
+│       │   ├── 📄 __init__.py
+│       │   ├── 📄 data_loader.py              # Load from DB/CSV
+│       │   ├── 📄 feature_engineering.py      # Create features
+│       │   ├── 📄 trainer.py                  # Train XGBoost model
+│       │   └── 📄 validator.py                # Validate model quality
+│       │
+│       ├── 📁 models/                         # Model Definitions
+│       │   ├── 📄 __init__.py
+│       │   └── 📄 ranker.py                   # XGBoost Ranker wrapper
+│       │
+│       └── 📁 utils/                          # Utilities
+│           ├── 📄 __init__.py
+│           ├── 📄 logger.py                   # Logging
+│           ├── 📄 db.py                       # Database connection
+│           └── 📄 model_saver.py              # Save model with versioning
+│
+├── 📁 storage/                                # SHARED STORAGE (Docker Volume)
+│   ├── 📁 models/                             # Trained ML models
+│   │   ├── 📄 .gitkeep                        # Keep directory in git
+│   │   ├── 📄 model_latest.pkl                # Currently active model
+│   │   └── 📄 metadata.json                   # Model versions & metrics
+│   │
+│   └── 📁 logs/                               # Application logs
+│       ├── 📁 api_service/
+│       ├── 📁 ml_service/
+│       └── 📁 training/
+│
+├── 📁 monitoring/                             # MONITORING CONFIGURATION
+│   ├── 📁 prometheus/
+│   │   ├── 📄 prometheus.yml                  # Prometheus config
+│   │   └── 📁 rules/
+│   │       └── 📄 alerts.yml                  # Alert rules
+│   │
+│   ├── 📁 grafana/
+│   │   ├── 📁 provisioning/
+│   │   │   ├── 📁 dashboards/
+│   │   │   │   └── 📄 dashboards.yml          # Dashboard provisioning
+│   │   │   └── 📁 datasources/
+│   │   │       └── 📄 datasources.yml         # Data source config
+│   │   │
+│   │   └── 📁 dashboards/
+│   │       ├── 📄 api_performance.json        # API metrics dashboard
+│   │       ├── 📄 ml_metrics.json             # ML model dashboard
+│   │       └── 📄 system_health.json          # System overview
+│   │
+│   └── 📁 loki/
+│       └── 📄 loki-config.yml                 # Loki configuration
+│
+├── 📁 database/                               # DATABASE
+│   ├── 📁 migrations/                         # Database migrations
+│   │   └── 📄 001_initial_schema.sql          # Initial tables
+│   │
+│   └── 📁 seeds/                              # Seed data
+│       └── 📄 sample_data.sql                 # Sample drivers/loads
+│
+├── 📁 scripts/                                # UTILITY SCRIPTS
+│   ├── 📄 setup.sh                            # Initial project setup
+│   ├── 📄 deploy.sh                           # Deployment script
+│   ├── 📄 train_manual.sh                     # Manual training trigger
+│   ├── 📄 backup_models.sh                    # Backup models
+│   └── 📄 health_check.sh                     # System health check
+│
+├── 📁 tests/                                  # TESTING
+│   ├── 📁 api_service/
+│   │   ├── 📄 test_dispatch.py
+│   │   └── 📄 test_health.py
+│   │
+│   ├── 📁 ml_service/
+│   │   ├── 📄 test_rule_engine.py
+│   │   ├── 📄 test_ml_engine.py
+│   │   └── 📄 test_predictor.py
+│   │
+│   ├── 📁 training/
+│   │   └── 📄 test_pipeline.py
+│   │
+│   └── 📁 integration/
+│       └── 📄 test_full_flow.py
+│
+├── 📁 data/                                   # SAMPLE DATA (for testing)
+│   ├── 📄 sample_drivers.csv
+│   ├── 📄 sample_loads.csv
+│   └── 📄 sample_historical_matches.csv
+│
+└── 📁 docs/                                   # DOCUMENTATION
+    ├── 📄 API.md                              # API documentation
+    ├── 📄 DEPLOYMENT.md                       # Deployment guide
+    ├── 📄 CONFIGURATION.md                    # Configuration reference
+    └── 📄 TROUBLESHOOTING.md                  # Common issues & solutions
+```
+
+---
+
+## 📊 DATABASE SCHEMA
+
+```sql
+-- drivers table
+CREATE TABLE drivers (
+    driver_id       UUID PRIMARY KEY,
+    name            VARCHAR(255) NOT NULL,
+    latitude        DECIMAL(10, 8) NOT NULL,
+    longitude       DECIMAL(11, 8) NOT NULL,
+    rating          DECIMAL(2, 1) DEFAULT 0,
+    completion_rate DECIMAL(3, 2) DEFAULT 0,
+    vehicle_type    VARCHAR(50) NOT NULL,
+    is_available    BOOLEAN DEFAULT true,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- loads table
+CREATE TABLE loads (
+    load_id         UUID PRIMARY KEY,
+    pickup_lat      DECIMAL(10, 8) NOT NULL,
+    pickup_lng      DECIMAL(11, 8) NOT NULL,
+    dropoff_lat     DECIMAL(10, 8) NOT NULL,
+    dropoff_lng     DECIMAL(11, 8) NOT NULL,
+    weight_kg       DECIMAL(10, 2) NOT NULL,
+    urgency         VARCHAR(20) DEFAULT 'medium',
+    status          VARCHAR(20) DEFAULT 'pending',
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- historical_matches table (for ML training)
+CREATE TABLE historical_matches (
+    match_id        UUID PRIMARY KEY,
+    driver_id       UUID REFERENCES drivers(driver_id),
+    load_id         UUID REFERENCES loads(load_id),
+    distance_km     DECIMAL(10, 2) NOT NULL,
+    driver_rating   DECIMAL(2, 1) NOT NULL,
+    completion_rate DECIMAL(3, 2) NOT NULL,
+    was_accepted    BOOLEAN NOT NULL,           -- Target for ML
+    response_time   INTEGER,                     -- Seconds
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for performance
+CREATE INDEX idx_drivers_available ON drivers(is_available);
+CREATE INDEX idx_drivers_location ON drivers(latitude, longitude);
+CREATE INDEX idx_loads_status ON loads(status);
+CREATE INDEX idx_matches_created ON historical_matches(created_at);
+```
+
+---
+
+## 🔑 ENVIRONMENT VARIABLES
 
 ```bash
-crontab -e
-```
+# .env.example
 
-```bash
-0 2 * * * cd /home/ubuntu/project && docker-compose run training
-```
+# ============================================
+# API SERVICE
+# ============================================
+API_HOST=0.0.0.0
+API_PORT=8000
+API_DEBUG=false
+API_WORKERS=4
 
-👉 Roz 2 baje:
+# ML Service Connection
+ML_SERVICE_URL=http://ml_service:8001
+ML_SERVICE_TIMEOUT=30
 
-* data load
-* model train
-* `/storage/model.pkl` update
+# ============================================
+# ML SERVICE
+# ============================================
+ML_HOST=0.0.0.0
+ML_PORT=8001
+ML_DEBUG=false
+ML_WORKERS=2
 
----
+# Model Configuration
+MODEL_PATH=/storage/models/model_latest.pkl
+METADATA_PATH=/storage/models/metadata.json
+MIN_CONFIDENCE_THRESHOLD=0.6
 
-# 🤖 5) ML SERVICE (AUTO-LOAD)
+# Feature Weights (Rule Engine)
+WEIGHT_DISTANCE=40
+WEIGHT_RATING=30
+WEIGHT_COMPLETION=30
 
-## 📌 `ml_service/predict.py`
+# ============================================
+# TRAINING SERVICE
+# ============================================
+TRAINING_DATA_SOURCE=database    # 'database' or 'csv'
+TRAINING_DATA_PATH=/data/sample_historical_matches.csv
+MODEL_OUTPUT_PATH=/storage/models/
+MIN_ACCURACY_THRESHOLD=0.7
+MODEL_VERSION_PREFIX=model_v
 
-```python
-import pickle, os
+# ============================================
+# DATABASE
+# ============================================
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=driver_matching
+DB_USER=postgres
+DB_PASSWORD=your_secure_password_here
+DB_POOL_SIZE=10
+DB_MAX_OVERFLOW=20
 
-MODEL_PATH = "/storage/model.pkl"
+# ============================================
+# REDIS (Optional - for caching)
+# ============================================
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
 
-model = None
-last_modified = None
+# ============================================
+# MONITORING
+# ============================================
+PROMETHEUS_PORT=9090
+GRAFANA_PORT=3000
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=secure_grafana_password
 
-def load_model():
-    global model, last_modified
-    
-    current = os.path.getmtime(MODEL_PATH)
-    
-    if last_modified != current:
-        with open(MODEL_PATH, "rb") as f:
-            model = pickle.load(f)
-        last_modified = current
-        print("🔄 New model loaded")
+# ============================================
+# LOGGING
+# ============================================
+LOG_LEVEL=INFO
+LOG_FORMAT=json
+LOG_PATH=/storage/logs
 
-def predict(data):
-    load_model()
-
-    features = [[
-        data["distance"],
-        data["rating"],
-        data["completion"]
-    ]]
-
-    return float(model.predict_proba(features)[0][1])
-```
-
-
-# 🐳 7) DOCKER COMPOSE (SYSTEM KO CONNECT KARTA HAI)
-
-```yaml
-version: "3.9"
-
-services:
-
-  api_service:
-    build: ./api_service
-    ports:
-      - "8000:8000"
-    depends_on:
-      - ml_service
-
-  ml_service:
-    build: ./ml_service
-    ports:
-      - "8001:8001"
-    volumes:
-      - ./storage:/storage
-
-  training:
-    build: ./training
-    volumes:
-      - ./storage:/storage
-```
-
----
-
-# 🚀 8) DEPLOYMENT (STEP-BY-STEP)
-
-## 🔹 Step 1 — Server (AWS EC2 / VPS)
-
-* Ubuntu server launch
-* SSH login
-
-## 🔹 Step 2 — Install Docker
-
-```bash
-sudo apt update
-sudo apt install docker.io docker-compose -y
+# ============================================
+# SECURITY
+# ============================================
+SECRET_KEY=your_super_secret_key_change_in_production
+API_KEY_HEADER=X-API-Key
+CORS_ORIGINS=["http://localhost:3000","https://yourdomain.com"]
 ```
 
 ---
 
-## 🔹 Step 3 — Code upload
+## 🐳 DOCKER SERVICES
 
-```bash
-git clone your-repo
-cd project
-```
-
----
-
-## 🔹 Step 4 — Run system
-
-```bash
-docker-compose up --build -d
-```
+| Service | Port | Description |
+|---------|------|-------------|
+| api_service | 8000 | Main API entry point |
+| ml_service | 8001 | Prediction engine |
+| training | - | Background training (cron) |
+| postgres | 5432 | Database |
+| redis | 6379 | Caching (optional) |
+| prometheus | 9090 | Metrics collection |
+| grafana | 3000 | Dashboards |
+| loki | 3100 | Log aggregation |
 
 ---
 
-## 🔹 Step 5 — API live
+## 🎯 API ENDPOINTS
 
-```text
-http://server-ip:8000/docs
-```
+### API Service (Port 8000)
 
----
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/dispatch` | Match drivers to load |
+| GET | `/api/v1/health` | Health check |
+| GET | `/metrics` | Prometheus metrics |
+| GET | `/docs` | Swagger UI |
 
-# 🔁 9) DEPLOY KE BAAD SYSTEM KAISE CHALEGA
+### ML Service (Port 8001)
 
----
-
-## 🔹 (A) USER FLOW
-
-```text
-User hits /dispatch
-   ↓
-API Service
-   ↓
-ML Service
-   ↓
-Model prediction
-   ↓
-Response
-```
-
-👉 time: milliseconds
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/predict` | Get driver rankings |
+| GET | `/health` | Health check |
+| GET | `/model/info` | Current model info |
+| GET | `/metrics` | Prometheus metrics |
 
 ---
 
-## 🔹 (B) NIGHT AUTO TRAIN
+## ✅ READY FOR IMPLEMENTATION
 
-```text
-2:00 AM
-   ↓
-Cron triggers training
-   ↓
-New model.pkl saved
-```
-
----
-
-## 🔹 (C) AUTO LOAD
-
-```text
-Next user request
-   ↓
-ML Service detects file change
-   ↓
-Reload model in memory
-   ↓
-New predictions
-```
-
-👉 No restart
-👉 No downtime
-
----
-
-# ⚠️ 10) FAILURE HANDLING (IMPORTANT)
-
-### Case: Training fail
-
-👉 Old model stays → system safe
-
-### Case: New model corrupt
-
-👉 load fail → keep old model
-
----
-
-# 🔥 FINAL FLOW (FULL)
-
-```text
-User → API → ML → Prediction
-
-(Background)
-Data → Training → model.pkl update
-
-(Next request)
-ML → detect change → reload → better prediction
-```
-
----
- add also monitoring and logs and also error handling 
-
- .env file is must and do a code like industry level 
-
- maintain every thing .env file for hiding credentials and requirements also 
- do code perfectly and also documented (comments) in every fuction and modules 
-
-
- model :- {
----
-
-# 🧠 REAL UNDERSTANDING
-
-Tu jo kar raha hai:
-
-```text
-1 load → 1000 drivers → best choose
-```
-
-👉 Ranker kya karega:
-
-* 1000 drivers ke features lega
-* sabko score dega
-* sort karega
-
-👉 Yeh operation **milliseconds me hota hai**
-
----
-
-# 🚀 PERFORMANCE BREAKDOWN
-
-## 🔹 Inference (prediction time)
-
-* 1000 rows input
-* XGBoost ranker predict
-
-👉 Time: ~5–20 ms (normal CPU pe)
-
----
-
-## 🔹 Memory
-
-* Light model: few MBs
-* 1000 rows: negligible
-
-👉 No issue
-
----
-
-# ⚡ IMPORTANT: GROUP STRUCTURE
-
-Agar tu ranker use kar raha hai:
-
-```python
-group = [1000]   # 1 load ke 1000 drivers
-```
-
-👉 Yeh perfectly valid hai
-
----
-
-# 🔥 REAL WORLD SCALE
-
-| Drivers per load | Status              |
-| ---------------- | ------------------- |
-| 100              | easy                |
-| 1000             | easy ✅              |
-| 10,000           | still ok            |
-| 1 lakh           | optimization needed |
-
----
-
- DATABASE SCHEMA
-
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                                    POSTGRESQL                                        │
-├─────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                      │
-│  ┌─────────────────────────┐       ┌─────────────────────────┐                       │
-│  │       drivers           │       │        loads            │                       │
-│  ├─────────────────────────┤       ├─────────────────────────┤                       │
-│  │ driver_id      UUID PK  │       │ load_id        UUID PK  │                       │
-│  │ name           VARCHAR  │       │ pickup_lat     DECIMAL  │                       │
-│  │ latitude       DECIMAL  │       │ pickup_lng     DECIMAL  │                       │
-│  │ longitude      DECIMAL  │       │ dropoff_lat    DECIMAL  │                       │
-│  │ rating         DECIMAL  │       │ dropoff_lng    DECIMAL  │                       │
-│  │ completion_rate DECIMAL │       │ weight_kg      DECIMAL  │                       │
-│  │ vehicle_type   VARCHAR  │       │ urgency        VARCHAR  │                       │
-│  │ is_available   BOOLEAN  │       │ status         VARCHAR  │                       │
-│  │ created_at     TIMESTAMP│       │ created_at     TIMESTAMP│                       │
-│  └────────────┬────────────┘       └────────────┬────────────┘                       │
-│               │                                 │                                    │
-│               │         ┌───────────────────────┘                                    │
-│               │         │                                                            │
-│               ▼         ▼                                                            │
-│  ┌──────────────────────────────────────┐                                            │
-│  │       historical_matches             │  ◄─── Training Data Source                 │
-│  ├──────────────────────────────────────┤                                            │
-│  │ match_id         UUID PK             │                                            │
-│  │ driver_id        UUID FK ────────────┼──► drivers                                 │
-│  │ load_id          UUID FK ────────────┼──► loads                                   │
-│  │ distance_km      DECIMAL             │                                            │
-│  │ driver_rating    DECIMAL             │                                            │
-│  │ completion_rate  DECIMAL             │                                            │
-│  │ was_accepted     BOOLEAN  ◄──────────┼──── ML Target (y)                          │
-│  │ response_time    INTEGER             │                                            │
-│  │ created_at       TIMESTAMP           │                                            │
-│  └──────────────────────────────────────┘                                            │
-│                                                                                      │
-└─────────────────────────────────────────────────────────────────────────────────────┘
- }
-
- ( or hn ):- abhi hum phase one m h to abhi data nhi h hmare pass to abhi hum ml ki jagha rule based use krenge to abhi structure banana h or rule based implement krna h or hn aaise bnana h ki user api jab hit krega to sath m parameter bhejega ml_use : true or false false hoga to rule based chlega true hoga to ml engione isse hme code or structure change nhi krna pdega jab data ajega ml train krke jha chnages krna h vha krke fir dubara chal jaayeg amtln mini mal chnages krne pdenge 
+This architecture supports:
+- ✅ Phase 1: Rule-based matching (no ML data needed)
+- ✅ Phase 2: ML-based matching (when data available)
+- ✅ Seamless switching via `ml_use` parameter
+- ✅ Auto-training with cron
+- ✅ Hot-reload without downtime
+- ✅ Full monitoring & logging
+- ✅ Production-ready error handling
